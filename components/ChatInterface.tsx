@@ -59,20 +59,45 @@ export default function ChatInterface() {
     setInput("");
     setIsLoading(true);
 
-    const selectedModel =
-      AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
+    const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
 
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...messages, newMsg], // Send history including new message
+          model: selectedModel.id
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "API Hatası");
+      }
+
       const responseMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `**${selectedModel.name}** yanıtı:\n\n"${contentToSend}"`,
+        content: data.content,
         model: selectedModel.name,
       };
 
       setMessages((prev: Message[]) => [...prev, responseMsg]);
+
+    } catch (error: any) {
+      // Show error as a system message or assistant error
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `⚠️ **Hata Oluştu:** ${error.message}\n\nLütfen API anahtarlarınızı kontrol edin veya daha sonra tekrar deneyin.`,
+        model: "System",
+      };
+      setMessages((prev: Message[]) => [...prev, errorMsg]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
