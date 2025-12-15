@@ -1,3 +1,6 @@
+
+console.log("HANDLE SEND ÇALIŞTI");
+
 "use client";
 
 import { useRef, useEffect, useContext } from "react";
