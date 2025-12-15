@@ -38,6 +38,9 @@ type ModelContextType = {
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   resetChat: () => void;
+  userEmail: string | null;
+  userName: string | null;
+  handleLogout: () => Promise<void>;
 };
 
 type SidebarContextType = {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useEffect, useContext } from "react";
-import { Send, Bot, User, Sparkles, Paperclip, Mic } from "lucide-react";
+import { Send, Bot, User, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../lib/utils";
 import { ModelContext } from "../app/layout";
 import { AI_MODELS } from "../data/models";
 
-/* ✅ NET ve GENİŞ Message tipi */
+/* ================= TYPES ================= */
+
 type Message = {
   id: string;
   role: "user" | "assistant";
@@ -15,116 +16,122 @@ type Message = {
   model?: string;
 };
 
+/* ================= COMPONENT ================= */
+
 export default function ChatInterface() {
   const {
     model,
-    setModel,
     messages,
     setMessages,
     input,
     setInput,
     isLoading,
     setIsLoading,
-    userEmail
+    userEmail,
   } = useContext(ModelContext);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const featuredModels = [
-    AI_MODELS.find(m => m.id === "gemini-3-pro"),
-    AI_MODELS.find(m => m.id === "gpt-5-2"),
-    AI_MODELS.find(m => m.id === "flux-1-pro"),
-    AI_MODELS.find(m => m.id === "codestral-mamba"),
-  ].filter(Boolean);
+  /* ================= AUTO SCROLL ================= */
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading]);
+
+  /* ================= SEND MESSAGE ================= */
 
   const handleSend = async (text?: string) => {
-    if (!userEmail) {
-      // Double check protection
-      return;
-    }
+    if (!userEmail) return;
+
     const contentToSend = text || input;
     if (!contentToSend.trim()) return;
 
-    const newMsg: Message = {
+    const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
       content: contentToSend,
     };
 
-    setMessages((prev: Message[]) => [...prev, newMsg]);
+    const updatedMessages = [...messages, userMsg];
+
+    setMessages(updatedMessages);
     setInput("");
     setIsLoading(true);
 
-    const selectedModel = AI_MODELS.find(m => m.id === model) || AI_MODELS[0];
-
     try {
-      const response = await fetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          messages: [...messages, newMsg], // Send history including new message
-          model: selectedModel.id
-        })
+          model,
+          messages: updatedMessages.map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "API Hatası");
+      if (!res.ok) {
+        throw new Error(data.error || "API hatası");
       }
 
-      const responseMsg: Message = {
+      const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: data.content,
-        model: selectedModel.name,
+        model,
       };
 
-      setMessages((prev: Message[]) => [...prev, responseMsg]);
-
-    } catch (error: any) {
-      // Show error as a system message or assistant error
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `⚠️ **Hata Oluştu:** ${error.message}\n\nLütfen API anahtarlarınızı kontrol edin veya daha sonra tekrar deneyin.`,
-        model: "System",
-      };
-      setMessages((prev: Message[]) => [...prev, errorMsg]);
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err: any) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: "❌ Sunucu hatası: " + err.message,
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  /* ================= UI ================= */
+
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto w-full relative">
+      {/* ================= CHAT AREA ================= */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-40">
-        {messages.length === 0 && !userEmail ? (
+        {!userEmail ? (
           <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-6">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-primary" />
             </div>
             <h2 className="text-2xl font-bold">Yamanzeka'ya Hoşgeldiniz</h2>
             <p className="text-muted-foreground max-w-md">
-              Yapay zeka modellerini kullanmak ve soru sormak için lütfen giriş yapın veya üye olun.
+              Yapay zeka modellerini kullanmak için giriş yapmalısınız.
             </p>
-            <a href="/auth" className="px-8 py-3 bg-primary text-primary-foreground font-medium rounded-full shadow-lg hover:shadow-primary/25 transition-all">
+            <a
+              href="/auth"
+              className="px-8 py-3 bg-primary text-primary-foreground font-medium rounded-full shadow-lg hover:shadow-primary/25 transition-all"
+            >
               Giriş Yap / Kayıt Ol
             </a>
           </div>
         ) : (
           <>
-            {messages.length === 0 && ( /* Hero Section for logged in users */
+            {messages.length === 0 && (
               <div className="text-center space-y-4 py-10 opacity-70">
                 <h2 className="text-2xl font-bold">Nasıl yardımcı olabilirim?</h2>
               </div>
             )}
 
-            {messages.map((msg: Message) => (
+            {messages.map(msg => (
               <motion.div
                 key={msg.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -169,26 +176,33 @@ export default function ChatInterface() {
         <div ref={scrollRef} />
       </div>
 
+      {/* ================= INPUT ================= */}
       <div className="absolute bottom-4 left-0 right-0 px-4">
         {userEmail ? (
-          <>
+          <div className="relative">
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Mesajınızı yazın..."
               className="w-full p-4 rounded-xl border resize-none bg-background shadow-lg focus:ring-2 focus:ring-primary/20 transition-all outline-none"
               rows={1}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
             />
             <button
               onClick={() => handleSend()}
-              disabled={!input.trim()}
-              className="absolute right-6 bottom-3 p-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              disabled={!input.trim() || isLoading}
+              className="absolute right-4 bottom-4 p-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               <Send size={18} />
             </button>
-          </>
+          </div>
         ) : (
-          <div className="w-full p-4 rounded-xl border bg-muted/50 text-center text-muted-foreground text-sm cursor-not-allowed">
+          <div className="w-full p-4 rounded-xl border bg-muted/50 text-center text-muted-foreground text-sm">
             Sohbet etmek için giriş yapmalısınız.
           </div>
         )}
