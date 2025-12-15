@@ -70,6 +70,37 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  /* Auth State */
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setUserEmail(data.user.email ?? null);
+        setUserName((data.user.user_metadata as any)?.full_name ?? null);
+      }
+    };
+    getUser();
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const user = session?.user;
+        setUserEmail(user?.email ?? null);
+        setUserName((user?.user_metadata as any)?.full_name ?? null);
+      }
+    );
+
+    return () => subscription.subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUserEmail(null);
+    setUserName(null);
+  };
+
   const resetChat = () => {
     setMessages([]);
     setInput("");
@@ -114,7 +145,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               setInput,
               isLoading,
               setIsLoading,
-              resetChat
+              resetChat,
+              userEmail,
+              userName,
+              handleLogout
             }}
           >
             <div className="flex min-h-screen">
@@ -133,35 +167,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 ========================= */
 function ContentWrapper({ children }: { children: ReactNode }) {
   const { isOpen } = useContext(SidebarContext);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
+  const { userEmail, userName, handleLogout } = useContext(ModelContext);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        setUserEmail(data.user.email ?? null);
-        setUserName((data.user.user_metadata as any)?.full_name ?? null);
-      }
-    };
-    getUser();
-
-    const { data: subscription } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        const user = session?.user;
-        setUserEmail(user?.email ?? null);
-        setUserName((user?.user_metadata as any)?.full_name ?? null);
-      }
-    );
-
-    return () => subscription.subscription.unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUserEmail(null);
-    setUserName(null);
-  };
+  // Removed local auth logic from here
 
   return (
     <motion.div
